@@ -1,5 +1,5 @@
 // Social Media Posts Extension for SillyTavern
-// Based on SillyTavern extension standards
+// Extensions Menu Only Version
 
 import { getContext, saveSettingsDebounced } from '../../../script.js';
 import { extension_settings, renderExtensionTemplate } from '../../extensions.js';
@@ -14,7 +14,6 @@ const defaultSettings = {
     posts: []
 };
 
-// Platform configurations
 const platforms = {
     'twitter': { name: 'Twitter', icon: '🐦', maxLength: 280 },
     'facebook': { name: 'Facebook', icon: '📘', maxLength: 5000 },
@@ -22,7 +21,6 @@ const platforms = {
     'threads': { name: 'Threads', icon: '🧵', maxLength: 500 }
 };
 
-// Post templates
 const postTemplates = {
     reflective: [
         "คิดเกี่ยวกับเรื่องนี้มาตลอด... {{context}}",
@@ -38,12 +36,17 @@ const postTemplates = {
         "แชร์เรื่องเล็กๆ น้อยๆ... {{context}}",
         "ชีวิตประจำวัน... {{context}}",
         "เพิ่งเจอเรื่องแบบนี้... {{context}}"
+    ],
+    dramatic: [
+        "ไม่น่าเชื่อว่าจะเกิดเรื่องแบบนี้! {{context}}",
+        "เรื่องน่าตกใจเกิดขึ้น... {{context}}",
+        "ตอนนี้กำลังเกิดขึ้น... {{context}}"
     ]
 };
 
 let messageCounter = 0;
 
-// Load settings from localStorage
+// Load settings
 function loadSettings() {
     extension_settings[extensionName] = extension_settings[extensionName] || { ...defaultSettings };
     
@@ -61,62 +64,100 @@ function loadSettings() {
     }
 }
 
-// Save settings to SillyTavern's settings system
 function saveSettings() {
     saveSettingsDebounced();
 }
 
-// Create the extension UI in settings
-async function createSettings() {
-    const settingsHtml = await renderExtensionTemplate(`scripts/extensions/third-party/${extensionName}`, 'settings.html', {
+// Create menu button in extensions menu
+function createMenuButton() {
+    // Check if menu already exists
+    if ($('#socialMediaMenuButton').length) return;
+    
+    const menuHtml = `
+        <div id="socialMediaMenuButton" class="list-group-item flex-container flexGap5">
+            <div class="fa-solid fa-square-share-nodes"></div>
+            <span>Social Media Posts</span>
+        </div>
+    `;
+    
+    // Add to extensions menu
+    $('#extensionsMenu').append(menuHtml);
+    
+    // Add click handler
+    $('#socialMediaMenuButton').on('click', function() {
+        toggleSocialMediaPanel();
+    });
+}
+
+// Toggle the social media panel
+async function toggleSocialMediaPanel() {
+    // Close other extension panels first
+    $('.extension_panel').hide();
+    
+    const existingPanel = $('#socialMediaPanel');
+    if (existingPanel.length) {
+        existingPanel.toggle();
+        return;
+    }
+    
+    // Create new panel
+    const panelHtml = await renderExtensionTemplate(`scripts/extensions/third-party/${extensionName}`, 'menu_panel.html', {
         settings: extension_settings[extensionName],
-        platforms: platforms
+        platforms: platforms,
+        posts: extension_settings[extensionName].posts || []
     });
     
-    $('#extensions_settings').append(settingsHtml);
-    await loadPostsFeed();
-    attachSettingsEvents();
+    $('body').append(panelHtml);
+    attachPanelEvents();
 }
 
-// Load posts into the feed
-async function loadPostsFeed() {
-    const postsFeed = $('#socialMediaPostsFeed');
-    if (postsFeed.length) {
-        const postsHtml = await renderExtensionTemplate(`scripts/extensions/third-party/${extensionName}`, 'posts_feed.html', {
-            posts: extension_settings[extensionName].posts || []
-        });
-        postsFeed.html(postsHtml);
-    }
-}
-
-// Attach event handlers to settings
-function attachSettingsEvents() {
+// Attach events to panel elements
+function attachPanelEvents() {
     // Enable/disable toggle
-    $('#socialMediaEnabled').on('change', function() {
+    $('#socialMediaPanelEnabled').on('change', function() {
         extension_settings[extensionName].enabled = this.checked;
         saveSettings();
+        updatePanelStatus();
     });
-
-    // Auto-post frequency
-    $('#socialMediaFrequency').on('change', function() {
+    
+    // Frequency input
+    $('#socialMediaPanelFrequency').on('change', function() {
         extension_settings[extensionName].autoPostFrequency = parseInt(this.value);
         saveSettings();
     });
-
+    
     // Platform checkboxes
     $('.social-platform-checkbox').on('change', function() {
         updateEnabledPlatforms();
     });
-
+    
     // Create post button
-    $('#createSocialPost').on('click', function() {
+    $('#socialMediaCreatePost').on('click', function() {
         createManualPost();
     });
-
+    
     // Clear posts button
-    $('#clearSocialPosts').on('click', function() {
+    $('#socialMediaClearPosts').on('click', function() {
         clearAllPosts();
     });
+    
+    // Close button
+    $('#socialMediaClosePanel').on('click', function() {
+        $('#socialMediaPanel').hide();
+    });
+    
+    // Initial status update
+    updatePanelStatus();
+}
+
+// Update panel status display
+function updatePanelStatus() {
+    const statusElement = $('#socialMediaPanelStatus');
+    if (statusElement.length) {
+        const isEnabled = extension_settings[extensionName].enabled;
+        statusElement.text(isEnabled ? '✅ เปิดใช้งาน' : '❌ ปิดใช้งาน');
+        statusElement.css('color', isEnabled ? '#4CAF50' : '#f44336');
+    }
 }
 
 // Update enabled platforms from checkboxes
@@ -129,18 +170,30 @@ function updateEnabledPlatforms() {
     saveSettings();
 }
 
-// Create a manual post
+// Create manual post
 async function createManualPost() {
-    const platform = $('#socialMediaPlatform').val();
-    const templateType = $('#socialMediaTemplate').val();
+    const platform = $('#socialMediaPanelPlatform').val();
+    const templateType = $('#socialMediaPanelTemplate').val();
     
     const post = generatePost(platform, templateType);
     addNewPost(post);
     showPostNotification(post);
-    await loadPostsFeed();
+    await reloadPanel();
 }
 
-// Generate a post
+// Reload panel content
+async function reloadPanel() {
+    const panelContent = await renderExtensionTemplate(`scripts/extensions/third-party/${extensionName}`, 'menu_panel.html', {
+        settings: extension_settings[extensionName],
+        platforms: platforms,
+        posts: extension_settings[extensionName].posts || []
+    });
+    
+    $('#socialMediaPanel').html(panelContent);
+    attachPanelEvents();
+}
+
+// Generate post
 function generatePost(platform, templateType = 'random') {
     const recentChat = getRecentChatContext(3);
     const context = extractPostContext(recentChat);
@@ -149,13 +202,11 @@ function generatePost(platform, templateType = 'random') {
     const actualTemplateType = templateType === 'random' ? getRandomTemplateType() : templateType;
     let content = generatePostContent(context, actualTemplateType);
     
-    // Trim to platform limits
     const maxLength = platforms[platform].maxLength;
     if (content.length > maxLength) {
         content = content.substring(0, maxLength - 3) + '...';
     }
     
-    // Add platform-specific formatting
     if (platform === 'instagram' || platform === 'twitter') {
         content += generateHashtags();
     }
@@ -175,14 +226,12 @@ function generatePost(platform, templateType = 'random') {
     };
 }
 
-// Generate post content from template
 function generatePostContent(context, templateType) {
     const templates = postTemplates[templateType];
     const template = templates[Math.floor(Math.random() * templates.length)];
     return template.replace('{{context}}', context);
 }
 
-// Extract context from recent chat
 function extractPostContext(recentChat) {
     if (recentChat.length === 0) {
         return "มีเรื่องราวน่าสนใจเกิดขึ้น...";
@@ -227,11 +276,10 @@ function getRandomPlatform() {
 }
 
 function generateHashtags() {
-    const hashtags = [' #ชีวิตประจำวัน', ' #ความคิด', ' #ความรู้สึก'];
+    const hashtags = [' #ชีวิตประจำวัน', ' #ความคิด', ' #ความรู้สึก', ' #RPG'];
     return hashtags[Math.floor(Math.random() * hashtags.length)];
 }
 
-// Add new post to the list
 function addNewPost(post) {
     if (!extension_settings[extensionName].posts) {
         extension_settings[extensionName].posts = [];
@@ -239,7 +287,6 @@ function addNewPost(post) {
     
     extension_settings[extensionName].posts.unshift(post);
     
-    // Limit posts count
     if (extension_settings[extensionName].posts.length > extension_settings[extensionName].maxPosts) {
         extension_settings[extensionName].posts = extension_settings[extensionName].posts.slice(0, extension_settings[extensionName].maxPosts);
     }
@@ -247,27 +294,25 @@ function addNewPost(post) {
     saveSettings();
 }
 
-// Show notification for new post
 function showPostNotification(post) {
     if (extension_settings[extensionName].enableNotifications && toastr) {
-        toastr.success(`New post on ${post.platformName}!`, "Social Media Posts", {
+        toastr.success(`โพสต์ใหม่บน ${post.platformName}!`, "Social Media Posts", {
             timeOut: 3000,
             extendedTimeOut: 1000
         });
     }
 }
 
-// Clear all posts
 async function clearAllPosts() {
-    if (confirm('Are you sure you want to clear all posts? This action cannot be undone.')) {
+    if (confirm('ต้องการล้างโพสต์ทั้งหมดใช่ไหม? การกระทำนี้ไม่สามารถย้อนกลับได้')) {
         extension_settings[extensionName].posts = [];
         saveSettings();
-        await loadPostsFeed();
-        toastr.info('All posts have been cleared');
+        await reloadPanel();
+        toastr.info('ล้างโพสต์ทั้งหมดแล้ว');
     }
 }
 
-// Handle incoming messages for auto-posting
+// Auto-post functionality
 function onMessageSent() {
     if (!extension_settings[extensionName]?.enabled) return;
     
@@ -279,13 +324,16 @@ function onMessageSent() {
             const post = generatePost(platform, 'random');
             addNewPost(post);
             showPostNotification(post);
-            loadPostsFeed();
+            
+            // Reload panel if it's open
+            if ($('#socialMediaPanel').is(':visible')) {
+                reloadPanel();
+            }
         }, 2000);
         messageCounter = 0;
     }
 }
 
-// Handle AI responses for contextual posting
 function onAiResponse() {
     if (!extension_settings[extensionName]?.enabled) return;
     
@@ -316,7 +364,11 @@ function onAiResponse() {
                     
                     addNewPost(post);
                     showPostNotification(post);
-                    loadPostsFeed();
+                    
+                    // Reload panel if it's open
+                    if ($('#socialMediaPanel').is(':visible')) {
+                        reloadPanel();
+                    }
                 }, 3000);
             }
         }
@@ -328,7 +380,7 @@ function shouldCreatePostFromResponse(response) {
     
     const emotionalIndicators = [
         'รู้สึก', 'คิดว่า', 'ไม่น่าเชื่อ', 'ประหลาดใจ', 'สุขใจ', 'เสียใจ',
-        'โกรธ', 'กลัว', 'รัก', 'เกลียด', 'ตื่นเต้น'
+        'โกรธ', 'กลัว', 'รัก', 'เกลียด', 'ตื่นเต้น', 'ดีใจ', 'เสียดาย'
     ];
     
     return emotionalIndicators.some(indicator => 
@@ -338,7 +390,6 @@ function shouldCreatePostFromResponse(response) {
 
 // Initialize extension
 jQuery(async () => {
-    // Wait for SillyTavern to load completely
     if (!getContext()) {
         setTimeout(() => jQuery(async () => await initializeExtension()), 1000);
         return;
@@ -350,7 +401,7 @@ jQuery(async () => {
 async function initializeExtension() {
     try {
         loadSettings();
-        await createSettings();
+        createMenuButton();
         
         // Register message handlers
         $(document).on('click', '#sendButt, #send_butt', onMessageSent);
@@ -380,4 +431,4 @@ async function initializeExtension() {
     } catch (error) {
         console.error('Failed to load Social Media Posts Extension:', error);
     }
-            }
+}
