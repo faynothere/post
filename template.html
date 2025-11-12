@@ -1,0 +1,95 @@
+<div id="social-media-extension" class="social-media-extension">
+    <div class="social-media-panel">
+        <div class="panel-header">
+            <h3>📱 Social Media Posts</h3>
+            <div class="header-controls">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="socialMediaToggle" {{#if settings.enabled}}checked{{/if}}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="panel-content">
+            <!-- Manual Post Creation -->
+            <div class="create-post-section">
+                <h4>สร้างโพสต์ใหม่</h4>
+                <div class="form-group">
+                    <label>แพลตฟอร์ม:</label>
+                    <select id="postPlatform">
+                        {{#each platforms}}
+                        <option value="{{@key}}">{{this.icon}} {{this.name}}</option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>รูปแบบ:</label>
+                    <select id="postTemplate">
+                        <option value="random">🎲 สุ่มอัตโนมัติ</option>
+                        <option value="reflective">🤔 ครุ่นคิด</option>
+                        <option value="emotional">😊 อารมณ์</option>
+                        <option value="casual">☕ สบายๆ</option>
+                        <option value="dramatic">🎭 ดราม่า</option>
+                    </select>
+                </div>
+                <button id="createPostBtn" class="btn-primary">สร้างโพสต์</button>
+            </div>
+            
+            <!-- Settings -->
+            <div class="settings-section">
+                <h4>การตั้งค่า</h4>
+                <div class="form-group">
+                    <label>โพสต์อัตโนมัติทุกๆ:</label>
+                    <div class="input-group">
+                        <input type="number" id="autoPostFreq" value="{{settings.autoPostFrequency}}" min="1" max="10">
+                        <span> ข้อความ</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>แพลตฟอร์มที่เปิดใช้งาน:</label>
+                    <div class="platform-checkboxes">
+                        {{#each platforms}}
+                        <label>
+                            <input type="checkbox" value="{{@key}}" {{#if (contains ../settings.enabledPlatforms @key)}}checked{{/if}}>
+                            {{this.icon}} {{this.name}}
+                        </label>
+                        {{/each}}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <button id="clearPostsBtn" class="btn-secondary">ล้างโพสต์ทั้งหมด</button>
+                </div>
+            </div>
+            
+            <!-- Posts Feed -->
+            <div class="posts-feed-section">
+                <div class="section-header">
+                    <h4>ฟีดโพสต์ล่าสุด</h4>
+                    <span class="post-count">({{#if settings.posts}}{{settings.posts.length}}{{else}}0{{/if}} โพสต์)</span>
+                </div>
+                <div id="postsFeed" class="posts-feed">
+                    {{#if settings.posts}}
+                        {{#each settings.posts}}
+                        <div class="social-post {{this.platform}}" data-post-id="{{this.id}}">
+                            <div class="post-header">
+                                <span class="platform-icon">{{this.platformIcon}}</span>
+                                <span class="platform-name">{{this.platformName}}</span>
+                                <span class="post-time">{{this.timestamp}}</span>
+                            </div>
+                            <div class="post-content">{{this.content}}</div>
+                            <div class="post-stats">
+                                <span>👍 {{this.likes}}</span>
+                                <span>💬 {{this.comments}}</span>
+                                <span>🔄 {{this.shares}}</span>
+                                <span class="post-char">โดย {{this.character}}</span>
+                            </div>
+                        </div>
+                        {{/each}}
+                    {{else}}
+                        <div class="no-posts">ยังไม่มีโพสต์</div>
+                    {{/if}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
