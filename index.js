@@ -1,39 +1,138 @@
-// index.js (module) — Social Post Generator (improved selectors + debug)
-const DEBUG = true; // set false to silence verbose logs
+(function () {
+    // ชื่อของ Extension (ควรตรงกับ manifest)
+    const extensionName = "Social Poster";
+    
+    // ตั้งค่าพื้นฐาน (คุณสามารถเพิ่มเมนูตั้งค่าได้ในอนาคต)
+    let settings = {
+        enabled: true,
+        // จำนวนข้อความล่าสุดที่จะใช้เป็นบริบท
+        contextMessages: 4, 
+        // นี่คือ "Prompt" หัวใจสำคัญที่จะสั่งให้ AI สร้างโพสต์
+        // {{char}} = ชื่อบอท, {{context}} = ประวัติแชท
+        socialPrompt: `
+[System: นี่คือบทสนทนาล่าสุดระหว่างคุณ ({{char}}) กับผู้ใช้]
+---
+{{context}}
+---
+[System: จากบทสนทนาข้างต้น ให้คุณเขียน "โพสต์โซเชียลมีเดีย" สั้นๆ (เหมือนบ่นลง Facebook หรือ Twitter) 
+จากมุมมองของ {{char}} ที่กำลังแสดงความคิดเห็นหรือบ่นเกี่ยวกับสิ่งที่เพิ่งเกิดขึ้น
+**ข้อสำคัญ:** ห้ามตอบเป็นบทสนทนาปกติ ให้เขียนเฉพาะตัว "โพสต์" เท่านั้น]
 
-function log(...args){ if(DEBUG) console.log('[SPG]', ...args); }
-function $id(id){ return document.getElementById(id); }
+{{char}}'s Post:
+`
+    };
 
-const toneEl = $id('spg-tone');
-const countEl = $id('spg-count');
-const draftEl = $id('spg-draft');
-const messagesEl = $id('spg-messages');
-const copyBtn = $id('spg-copy');
-const editBtn = $id('spg-edit');
-const openTweetBtn = $id('spg-open-tweet');
-const openFbBtn = $id('spg-open-fb');
-const insertHashtags = $id('spg-insert-hashtags');
-const keywordsEl = $id('spg-keywords');
-const debugEl = $id('spg-debug');
+    // DOM Elements (ตัวแปรสำหรับอ้างอิงถึง HTML)
+    let panel;
+    let postContent;
+    let postLoading;
+    let refreshButton;
 
-let lastExtracted = [];
-let observer = null;
-let debounceTimer = null;
+    /**
+     * ฟังก์ชันหลัก: สร้างโพสต์โซเชียล
+     */
+    async function generateSocialPost() {
+        if (!settings.enabled) return;
 
-// a broad list of selectors used by various versions/themes of SillyTavern
-const CHAT_SELECTOR_CANDIDATES = [
-  '.chat-messages',
-  '.messages',
-  '.st-messages',
-  '.chat-lines',
-  '#chat',
-  '.thread',           // generic
-  '[data-testid="chat"]',
-  '.container-messages'
-];
+        // 1. แสดงสถานะ "กำลังโหลด"
+        if (postLoading) postLoading.style.display = 'block';
+        if (postContent) postContent.style.display = 'none';
 
-// message node candidates used inside chat container
-const MESSAGE_NODE_SELECTORS = [
+        try {
+            // 2. ดึงข้อมูลบริบท (แชทล่าสุด)
+            const context = SillyTavern.getContext();
+            const character = context.character;
+            
+            // เลือกข้อความล่าสุดตามจำนวนที่ตั้งค่าไว้
+            const recentChat = context.chat
+                .slice(-settings.contextMessages)
+                .map(msg => `${msg.name}: ${msg.mes}`)
+                .join('\n');
+
+            // 3. สร้าง Prompt ที่จะส่งให้ AI
+            let prompt = settings.socialPrompt
+                .replace(/{{char}}/g, character.name)
+                .replace(/{{context}}/g, recentChat);
+
+            // 4. ส่งคำสั่ง (Prompt) ไปให้ AI (นี่คือการเรียก API แยกต่างหาก)
+            // เราใช้ 'generatePromise' เพื่อขอคำตอบโดยไม่ไปยุ่งกับแชทหลัก
+            const response = await SillyTavern.modules.generation.generatePromise(
+                prompt,       // Prompt ที่เราสร้าง
+                false,        // is_instruct (false = โหมด Roleplay)
+                false,        // stream (false = รอคำตอบจนเสร็จ)
+                {             // Generation params (ใช้ค่าเดียวกับแชทหลัก)
+                    model: context.model,
+                    preset: context.preset,
+                    token: context.token,
+                }
+            );
+
+            // 5. ทำความสะอาดข้อความที่ได้
+            let postText = response.trim();
+            
+            // (Optional) อาจจะต้องตัดคำพูดเกริ่นนำที่ AI อาจจะเผลอใส่มา
+            if (postText.startsWith(`${character.name}'s Post:`)) {
+                postText = postText.substring(`${character.name}'s Post:`.length).trim();
+            }
+
+            // 6. แสดงผลลัพธ์ในหน้า UI
+            if (postContent) {
+                // ใช้ <p> เพื่อให้รองรับการขึ้นบรรทัดใหม่ (จาก \n)
+                postContent.innerHTML = `<p>${postText.replace(/\n/g, '<br>')}</p>`;
+            }
+
+        } catch (error) {
+            console.error(`${extensionName}: เกิดข้อผิดพลาดในการสร้างโพสต์`, error);
+            if (postContent) {
+                postContent.innerHTML = `<p class="social-post-placeholder">เกิดข้อผิดพลาด: ${error.message}</p>`;
+            }
+        } finally {
+            // 7. ซ่อนสถานะ "กำลังโหลด"
+            if (postLoading) postLoading.style.display = 'none';
+            if (postContent) postContent.style.display = 'block';
+        }
+    }
+
+    /**
+     * ฟังก์ชัน: โหลดหน้า UI (template.html) เข้าไปใน SillyTavern
+     */
+    async function loadPanel() {
+        const template = await $.get(`extensions/${extensionName}/template.html`);
+        
+        // นำ HTML ไปต่อในแผงด้านขวา (right-sidebar)
+        $("#right-sidebar").append(template);
+
+        // เชื่อมตัวแปรเข้ากับ DOM
+        panel = document.getElementById('social-poster-panel');
+        postContent = document.getElementById('social-post-content');
+        postLoading = document.getElementById('social-post-loading');
+        refreshButton = document.getElementById('social-post-refresh-btn');
+
+        // เพิ่ม Event Listener ให้ปุ่ม Refresh
+        if (refreshButton) {
+            refreshButton.addEventListener('click', generateSocialPost);
+        }
+    }
+
+    /**
+     * ฟังก์ชัน: เริ่มต้นทำงาน (Entry Point)
+     */
+    function onPageLoad() {
+        // 1. โหลด Panel UI
+        loadPanel();
+
+        // 2. ตั้งค่า "Event Listener"
+        // นี่คือส่วนสำคัญ: เราสั่งให้ฟังก์ชัน `generateSocialPost` ทำงาน
+        // "หลังจาก" ที่ AI ตอบแชทเสร็จแล้วทุกครั้ง
+        SillyTavern.events.addEventListener('afterHandleResponse', generateSocialPost);
+
+        console.log(`${extensionName} loaded!`);
+    }
+
+    // รอให้หน้าเว็บโหลดเสร็จก่อน แล้วค่อยเริ่มทำงาน
+    $(document).ready(onPageLoad);
+
+})();
   '.message', '.chat-line', '.bubble', '.st-message', '.line'
 ];
 
