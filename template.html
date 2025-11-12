@@ -1,39 +1,25 @@
-<!doctype html>
-<html lang="th">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Social Post Generator</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div id="spg-root" class="spg-root" aria-live="polite">
-    <header class="spg-header">
-      <h3>Social Post Generator</h3>
-      <div class="spg-controls">
-        <label>Tone:
-          <select id="spg-tone">
-            <option value="complain">บ่น/เซ็ง</option>
-            <option value="funny">ขำ/แซว</option>
-            <option value="sad">เศร้า/ครุ่นคิด</option>
-            <option value="brag">โอ้อวด/ภูมิใจ</option>
-            <option value="neutral" selected>เรียบๆ</option>
-          </select>
-        </label>
-        <label>Recent messages:
-          <input id="spg-count" type="number" min="1" max="10" value="4"/>
-        </label>
-      </div>
-    </header>
-
-    <main class="spg-main">
-      <section class="spg-preview">
-        <h4>Preview draft post</h4>
-        <textarea id="spg-draft" readonly rows="6" placeholder="รอข้อความ..."></textarea>
-        <div class="spg-buttons">
-          <button id="spg-copy">คัดลอก</button>
-          <button id="spg-edit">แก้ไข</button>
-          <button id="spg-open-tweet">Open Tweet</button>
+<div id="social-poster-panel" class="rpg-companion-extension">
+    <div class="rpg-companion-header">
+        <i class="fa-solid fa-hashtag"></i>
+        <h3>บอทกำลังคิดอะไรอยู่...</h3>
+    </div>
+    
+    <div class="rpg-companion-content">
+        <div id="social-post-container">
+            <div id="social-post-loading" style="display: none;">
+                <i class="fa-solid fa-spinner fa-spin"></i> กำลังสร้างโพสต์...
+            </div>
+            <div id="social-post-content">
+                <p class="social-post-placeholder">ยังไม่มีโพสต์... เริ่มคุยกับบอทได้เลย!</p>
+            </div>
+        </div>
+        
+        <button id="social-post-refresh-btn" class="menu_button">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            สร้างโพสต์ใหม่เดี๋ยวนี้
+        </button>
+    </div>
+</div>
           <button id="spg-open-fb">Open Facebook Share</button>
         </div>
         <div id="spg-debug" class="spg-debug"></div>
